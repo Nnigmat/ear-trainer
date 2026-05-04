@@ -1,0 +1,1327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EarCraft — Music Ear Trainer</title>
+<!-- Syne: geometric display headings | DM Sans: clean body | DM Mono: music notation -->
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Tone.js: high-quality Web Audio synthesis -->
+<script src="https://unpkg.com/tone@14.8.49/build/Tone.js"></script>
+<style>
+/* ══════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — Light theme with vivid orange accent
+   ══════════════════════════════════════════════════════════════ */
+:root {
+  --bg:         #F8F5F0;
+  --surf:       #FFFFFF;
+  --surf2:      #F0ECE5;
+  --bdr:        #E4DDD5;
+  --text:       #1A1614;
+  --text2:      #6B6460;
+  --text3:      #9C9490;
+  --acc:        #FF8C00;
+  --acc-d:      #D97400;
+  --acc-t:      rgba(255,140,0,.10);
+  --ok:         #16A34A;
+  --ok-bg:      #DCFCE7;
+  --err:        #DC2626;
+  --err-bg:     #FEE2E2;
+  --note:       #2563EB;
+  --note-bg:    #DBEAFE;
+  --warn:       #D97706;
+  --warn-bg:    #FEF3C7;
+  --fh:         'Syne', sans-serif;
+  --fb:         'DM Sans', sans-serif;
+  --fm:         'DM Mono', monospace;
+  --r:          12px;
+}
+
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--fb); background: var(--bg); color: var(--text);
+  min-height: 100vh; line-height: 1.5;
+}
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+b { font-weight: 600; }
+
+/* ── START OVERLAY ── */
+#overlay {
+  position: fixed; inset: 0; z-index: 999;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity .45s ease, visibility .45s ease;
+}
+#overlay.gone { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.start-card { text-align: center; padding: 48px 36px; max-width: 420px; }
+
+.start-logo {
+  font-family: var(--fh); font-size: 62px; font-weight: 800;
+  letter-spacing: -3px; line-height: 1;
+  background: linear-gradient(135deg, #FF8C00 20%, #FF4500 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 6px;
+}
+.start-sub { color: var(--text2); font-size: 15px; margin-bottom: 36px; }
+
+.feat-list { list-style: none; text-align: left; margin-bottom: 36px; }
+.feat-list li {
+  padding: 10px 0; border-bottom: 1px solid var(--bdr);
+  color: var(--text2); font-size: 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.feat-list li::before { content: '♪'; color: var(--acc); font-size: 16px; flex-shrink: 0; }
+
+.btn-start {
+  background: var(--acc); color: #fff;
+  font-family: var(--fh); font-size: 17px; font-weight: 800;
+  padding: 15px 54px; border-radius: 50px; letter-spacing: .3px;
+  transition: all .2s;
+}
+.btn-start:hover:not(:disabled) {
+  background: var(--acc-d); transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(255,140,0,.35);
+}
+.btn-start:disabled { opacity: .6; cursor: not-allowed; }
+
+/* ── APP SHELL ── */
+#app { max-width: 900px; margin: 0 auto; padding: 20px 16px 60px; }
+
+/* Header */
+.app-hdr {
+  display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+}
+.logo { font-family: var(--fh); font-size: 22px; font-weight: 800; color: var(--acc); flex-shrink: 0; }
+.prog-wrap { flex: 1; min-width: 0; }
+.prog-bar  { height: 6px; background: var(--bdr); border-radius: 3px; overflow: hidden; }
+.prog-fill {
+  height: 100%; border-radius: 3px; width: 0%;
+  background: linear-gradient(90deg, var(--acc), #FF4500);
+  transition: width .5s ease;
+}
+.hstats { display: flex; gap: 8px; flex-shrink: 0; }
+.stat {
+  background: var(--surf); border: 1px solid var(--bdr); border-radius: 50px;
+  padding: 5px 13px; font-family: var(--fm); font-size: 12px; color: var(--text2);
+}
+.stk { background: var(--acc-t); border-color: rgba(255,140,0,.25); color: var(--acc); }
+
+/* Mode Tabs */
+.mode-tabs {
+  display: flex; gap: 4px; background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: var(--r); padding: 4px; margin-bottom: 20px;
+}
+.mode-tab {
+  flex: 1; padding: 10px 6px; text-align: center;
+  font-family: var(--fh); font-size: 12.5px; font-weight: 700;
+  color: var(--text2); border-radius: 9px; transition: all .15s; line-height: 1.25;
+}
+.mode-tab:hover { color: var(--text); }
+.mode-tab.on {
+  background: var(--acc); color: #fff;
+  box-shadow: 0 2px 8px rgba(255,140,0,.3);
+}
+
+/* ── EXERCISE CARD ── */
+.ex-card {
+  background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 16px; padding: 24px 22px; margin-bottom: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.05);
+}
+.ex-lbl {
+  font-size: 10px; font-weight: 600; letter-spacing: 1.8px;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
+}
+.ex-task {
+  font-family: var(--fh); font-size: 26px; font-weight: 700;
+  color: var(--text); line-height: 1.25; margin-bottom: 6px;
+}
+.ex-task em { color: var(--acc); font-style: normal; }
+.ex-hint { font-size: 13px; color: var(--text2); margin-bottom: 18px; line-height: 1.4; }
+.ex-hint code {
+  font-family: var(--fm); background: var(--surf2); padding: 2px 7px;
+  border-radius: 4px; font-size: 12px; color: var(--text);
+}
+
+/* Action row */
+.act-row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+
+.btn-replay {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--surf2); border: 1px solid var(--bdr);
+  border-radius: 50px; padding: 9px 18px;
+  font-size: 13px; font-weight: 500; color: var(--text2); transition: all .15s;
+}
+.btn-replay:hover { background: var(--bdr); color: var(--text); }
+.r-icon {
+  width: 20px; height: 20px; border-radius: 50%;
+  background: var(--acc); color: #fff; font-size: 8px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+
+.btn-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--acc); color: #fff; border-radius: 50px;
+  padding: 10px 22px; font-family: var(--fh); font-size: 14px; font-weight: 700;
+  transition: all .15s;
+}
+.btn-cta:hover { background: var(--acc-d); transform: translateY(-1px); }
+.btn-cta:disabled { background: var(--bdr); color: var(--text3); transform: none; cursor: not-allowed; }
+
+/* Feedback toast */
+.feedback {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 13px 16px; border-radius: 10px; margin-top: 14px;
+  animation: pop .3s ease;
+}
+@keyframes pop { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+.feedback.ok  { background: var(--ok-bg);  color: var(--ok);  }
+.feedback.err { background: var(--err-bg); color: var(--err); }
+.fb-icon  { font-size: 18px; line-height: 1.5; }
+.fb-title { font-weight: 600; font-size: 13.5px; }
+.fb-det   { font-size: 12px; opacity: .85; margin-top: 2px; line-height: 1.4; }
+
+/* Interval answer grid */
+.ans-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin-top: 16px; }
+@media (max-width:520px) { .ans-grid { grid-template-columns: repeat(3,1fr); } }
+
+.ans-btn {
+  background: var(--surf2); border: 2px solid var(--bdr);
+  border-radius: 10px; padding: 10px 5px; text-align: center;
+  transition: all .15s;
+}
+.ans-btn .iv-sh {
+  display: block; font-family: var(--fm); font-size: 15px; font-weight: 500;
+  color: var(--acc); margin-bottom: 2px;
+}
+.ans-btn .iv-n { font-size: 10.5px; color: var(--text2); }
+.ans-btn:hover:not(:disabled) {
+  border-color: var(--acc); background: var(--acc-t); transform: translateY(-1px);
+}
+.ans-btn:disabled { cursor: not-allowed; opacity: .55; }
+.ans-btn.ok  { background: var(--ok-bg);  border-color: var(--ok); }
+.ans-btn.ok  .iv-sh, .ans-btn.ok  .iv-n { color: var(--ok);  }
+.ans-btn.err { background: var(--err-bg); border-color: var(--err); }
+.ans-btn.err .iv-sh, .ans-btn.err .iv-n { color: var(--err); }
+
+/* ── INSTRUMENT CONTROLS ── */
+.inst-ctrls {
+  display: flex; gap: 8px; align-items: center;
+  flex-wrap: wrap; margin-bottom: 14px;
+}
+.sound-pills {
+  display: flex; gap: 2px; background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 50px; padding: 3px;
+}
+.snd-btn {
+  padding: 5px 14px; border-radius: 50px;
+  font-size: 12px; font-weight: 600; color: var(--text2); transition: all .15s;
+}
+.snd-btn.on { background: var(--acc); color: #fff; }
+.tgl-btn {
+  padding: 6px 14px; border-radius: 50px;
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  border: 1.5px solid var(--bdr); transition: all .15s;
+}
+.tgl-btn:hover { border-color: var(--text3); color: var(--text); }
+.tgl-btn.on { border-color: var(--acc); color: var(--acc); background: var(--acc-t); }
+
+/* ── INSTRUMENT WRAPPER ── */
+.inst-sec {
+  background: var(--surf); border: 1px solid var(--bdr);
+  border-radius: 16px; overflow: hidden; margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+.inst-head {
+  padding: 11px 16px; border-bottom: 1px solid var(--bdr);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.inst-title {
+  font-family: var(--fh); font-size: 13px; font-weight: 700; color: var(--text2);
+  display: flex; align-items: center; gap: 8px;
+}
+.inst-badge {
+  font-family: var(--fm); font-size: 10px; color: var(--text3);
+  background: var(--surf2); border: 1px solid var(--bdr);
+  padding: 2px 8px; border-radius: 4px;
+}
+.inst-body { padding: 16px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ══════════════════════════════════════════════════════════════
+   PIANO KEYBOARD
+   ══════════════════════════════════════════════════════════════ */
+.piano-wrap {
+  position: relative; height: 128px;
+  user-select: none; min-width: max-content;
+}
+/* All keys absolutely positioned */
+.p-key { position: absolute; top: 0; cursor: pointer; transition: filter .1s ease; }
+
+/* White keys */
+.p-key.wk {
+  height: 124px;
+  background: #FEFEFE;
+  border: 1px solid #C8BEB6;
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.06);
+  z-index: 1;
+}
+/* Black keys */
+.p-key.bk {
+  height: 78px;
+  background: linear-gradient(to bottom, #252018 0%, #181210 60%, #0C0808 100%);
+  border-radius: 0 0 4px 4px;
+  box-shadow: 1px 2px 6px rgba(0,0,0,.45), inset 0 -2px 0 rgba(0,0,0,.5);
+  z-index: 2;
+}
+.p-key.wk:hover { background: #FFF5E8; }
+.p-key.bk:hover { background: linear-gradient(to bottom, #35280E, #20180A); }
+.p-key:active   { filter: brightness(.82); }
+
+/* Note label at bottom of key */
+.klbl {
+  position: absolute; bottom: 6px; left: 0; right: 0;
+  text-align: center; font-family: var(--fm); font-size: 8px;
+  color: rgba(0,0,0,.22); pointer-events: none;
+}
+.p-key.bk .klbl { color: rgba(255,255,255,.15); bottom: 4px; }
+.show-names .p-key.wk .klbl { color: rgba(0,0,0,.45); }
+.show-names .p-key.bk .klbl { color: rgba(255,255,255,.45); }
+
+/* ── Piano key highlight states ── */
+.p-key.k-root.wk  { background: var(--note-bg) !important; border-color: var(--note);  }
+.p-key.k-root.bk  { background: var(--note)    !important; }
+.p-key.k-sel.wk   { background: var(--acc-t)   !important; border-color: var(--acc);   }
+.p-key.k-sel.bk   { background: var(--acc)     !important; }
+.p-key.k-ok.wk    { background: var(--ok-bg)   !important; border-color: var(--ok);    }
+.p-key.k-ok.bk    { background: var(--ok)      !important; }
+.p-key.k-err.wk   { background: var(--err-bg)  !important; border-color: var(--err);   }
+.p-key.k-err.bk   { background: var(--err)     !important; }
+.p-key.k-miss.wk  { background: var(--warn-bg) !important; border-color: var(--warn);  }
+.p-key.k-miss.bk  { background: var(--warn)    !important; }
+.p-key.flash { animation: kflash .45s ease; }
+@keyframes kflash { 0%,100%{filter:brightness(1)} 45%{filter:brightness(.72)} }
+
+/* ══════════════════════════════════════════════════════════════
+   GUITAR FRETBOARD
+   ══════════════════════════════════════════════════════════════ */
+.fb-wrap { user-select: none; min-width: max-content; }
+
+/* Shared row layout */
+.fb-row { display: flex; align-items: stretch; }
+
+/* String label column */
+.fb-lbl {
+  width: 46px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--fm); font-size: 11px; font-weight: 500; color: var(--text2);
+  background: var(--surf2); border-right: 2px solid var(--bdr);
+}
+
+/* Fret number header cells */
+.fn-cell {
+  width: 50px; flex-shrink: 0; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--fm); font-size: 10px; color: var(--text3);
+  background: var(--surf2); border-right: 1px solid var(--bdr);
+  border-bottom: 2px solid var(--bdr);
+}
+.fn-cell.mfret { color: var(--text2); font-weight: 500; }
+
+/* Fretboard string rows background color (slight alternation) */
+.fb-str:nth-child(odd)  .fc { background: #BE7E32; }
+.fb-str:nth-child(even) .fc { background: #B07228; }
+
+/* Individual fret cells */
+.fc {
+  width: 50px; flex-shrink: 0; height: 38px;
+  position: relative; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  border-right: 2px solid rgba(60,28,4,.65);
+  border-bottom: 1px solid rgba(0,0,0,.08);
+  transition: filter .1s;
+}
+.fc:hover { filter: brightness(1.12); }
+.fc:active { filter: brightness(.88); }
+
+/* Nut (first fret cell in each row) */
+.fc.nut { border-left: 5px solid #E0D0B0; }
+
+/* String line (horizontal wire) */
+.sline {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  pointer-events: none; z-index: 0;
+  background: linear-gradient(90deg,
+    rgba(210,195,170,.8) 0%,
+    rgba(235,220,195,.95) 50%,
+    rgba(210,195,170,.8) 100%);
+}
+
+/* Note dot */
+.ndot {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: transparent; border: 2px solid transparent;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2; position: relative; transition: all .15s;
+}
+.fc:hover .ndot { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.5); }
+
+/* Note name inside dot */
+.nn {
+  font-family: var(--fm); font-size: 8px;
+  color: transparent; transition: color .15s; pointer-events: none;
+}
+.fc:hover .nn, .fc.shw .nn { color: rgba(255,255,255,.8); }
+
+/* ── Fret cell highlight states ── */
+.fc.k-root .ndot { background: var(--note) !important; border-color: var(--note); }
+.fc.k-root .nn   { color: #fff !important; }
+.fc.k-sel  .ndot { background: var(--acc)  !important; border-color: var(--acc);  }
+.fc.k-sel  .nn   { color: #fff !important; }
+.fc.k-ok   .ndot { background: var(--ok)   !important; border-color: var(--ok);   }
+.fc.k-ok   .nn   { color: #fff !important; }
+.fc.k-err  .ndot { background: var(--err)  !important; border-color: var(--err);  }
+.fc.k-err  .nn   { color: #fff !important; }
+.fc.k-miss .ndot { background: var(--warn) !important; border-color: var(--warn); }
+.fc.k-miss .nn   { color: #fff !important; }
+
+/* Position marker row */
+.fd-row .fb-lbl { border-bottom: none; }
+.fd-cell {
+  width: 50px; flex-shrink: 0; height: 20px;
+  display: flex; align-items: center; justify-content: center; gap: 3px;
+  background: var(--surf2); border-right: 1px solid var(--bdr);
+}
+.pdot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text3); opacity: .65;
+}
+
+/* ── Utilities ── */
+.hidden { display: none !important; }
+
+/* ── Melodic / Harmonic toggle pill (interval-id) ── */
+.play-mode-pill {
+  display: inline-flex; gap: 2px;
+  background: var(--surf2); border: 1px solid var(--bdr);
+  border-radius: 50px; padding: 3px;
+}
+.pmp-btn {
+  padding: 5px 13px; border-radius: 50px;
+  font-size: 12px; font-weight: 600; color: var(--text2);
+  transition: all .15s; white-space: nowrap;
+}
+.pmp-btn.on { background: var(--note); color: #fff; }
+.pmp-btn:hover:not(.on) { color: var(--text); }
+
+/* ── Chord ID answer grid ── */
+.ch-grid {
+  display: grid; grid-template-columns: repeat(4,1fr); gap: 7px; margin-top: 16px;
+}
+@media (max-width:540px) { .ch-grid { grid-template-columns: repeat(2,1fr); } }
+.ch-btn {
+  background: var(--surf2); border: 2px solid var(--bdr);
+  border-radius: 10px; padding: 12px 8px; text-align: center; transition: all .15s;
+}
+.ch-btn .ch-name {
+  display: block; font-family: var(--fh); font-size: 13px; font-weight: 700;
+  color: var(--text); margin-bottom: 4px;
+}
+.ch-btn .ch-sym {
+  display: block; font-family: var(--fm); font-size: 12px; color: var(--acc);
+}
+.ch-btn:hover:not(:disabled) {
+  border-color: var(--acc); background: var(--acc-t); transform: translateY(-1px);
+}
+.ch-btn:disabled { cursor: not-allowed; opacity: .55; }
+.ch-btn.ok  { background: var(--ok-bg);  border-color: var(--ok);  }
+.ch-btn.ok  .ch-name, .ch-btn.ok  .ch-sym { color: var(--ok);  }
+.ch-btn.err { background: var(--err-bg); border-color: var(--err); }
+.ch-btn.err .ch-name, .ch-btn.err .ch-sym { color: var(--err); }
+</style>
+</head>
+<body>
+
+<!-- ════════════════ START OVERLAY ════════════════ -->
+<div id="overlay">
+  <div class="start-card">
+    <div class="start-logo">EarCraft</div>
+    <p class="start-sub">Your musical ear training studio</p>
+    <ul class="feat-list">
+      <li>Identify intervals by ear — melodic or harmonic playback</li>
+      <li>Construct intervals on piano &amp; guitar fretboard</li>
+      <li>Identify chord quality by ear — Major, Minor, Aug, Dim, 7th</li>
+      <li>Build chords interactively · Realistic Tone.js synthesis</li>
+    </ul>
+    <button class="btn-start" id="startBtn">Begin Training →</button>
+  </div>
+</div>
+
+<!-- ════════════════ MAIN APP ════════════════ -->
+<div id="app">
+
+  <!-- Header: logo + progress + stats -->
+  <div class="app-hdr">
+    <div class="logo">EarCraft</div>
+    <div class="prog-wrap">
+      <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+    </div>
+    <div class="hstats">
+      <div class="stat">Score <b id="statScore">0/0</b></div>
+      <div class="stat stk">🔥 <b id="statStreak">0</b></div>
+    </div>
+  </div>
+
+  <!-- Mode selector tabs -->
+  <div class="mode-tabs" role="tablist" aria-label="Exercise mode">
+    <button class="mode-tab on" data-mode="interval-id"    role="tab">Interval ID</button>
+    <button class="mode-tab"   data-mode="interval-build"  role="tab">Interval Build</button>
+    <button class="mode-tab"   data-mode="chord-build"     role="tab">Chord Build</button>
+    <button class="mode-tab"   data-mode="chord-id"        role="tab">Chord ID</button>
+  </div>
+
+  <!-- Exercise card (dynamically rendered) -->
+  <div class="ex-card" id="exCard" aria-live="polite">Loading…</div>
+
+  <!-- Instrument controls -->
+  <div class="inst-ctrls">
+    <div class="sound-pills" aria-label="Sound selector">
+      <button class="snd-btn on" data-sound="piano">🎹 Piano</button>
+      <button class="snd-btn"   data-sound="guitar">🎸 Guitar</button>
+    </div>
+    <button class="tgl-btn on" id="tglPiano">Piano Keys</button>
+    <button class="tgl-btn"    id="tglGuitar">Fretboard</button>
+    <button class="tgl-btn"    id="tglNames">Note Names</button>
+  </div>
+
+  <!-- Piano section -->
+  <div class="inst-sec" id="pianoSec">
+    <div class="inst-head">
+      <div class="inst-title">
+        Piano Keyboard <span class="inst-badge">C3 – C5 · 2 octaves</span>
+      </div>
+    </div>
+    <div class="inst-body">
+      <div class="piano-wrap" id="pianoWrap"></div>
+    </div>
+  </div>
+
+  <!-- Guitar section -->
+  <div class="inst-sec hidden" id="guitarSec">
+    <div class="inst-head">
+      <div class="inst-title">
+        Guitar Fretboard <span class="inst-badge">Standard Tuning · EADGBe · 12 frets</span>
+      </div>
+    </div>
+    <div class="inst-body">
+      <div class="fb-wrap" id="fbWrap"></div>
+    </div>
+  </div>
+
+</div><!-- /#app -->
+
+<script>
+/* ============================================================
+   EarCraft — Music Ear Trainer
+   Tone.js-powered SPA for interval & chord training.
+   
+   Modules (all in global scope for onclick compatibility):
+   • Music theory constants
+   • App state
+   • Audio engine (Tone.js)
+   • Exercise engine
+   • UI rendering
+   • Piano builder
+   • Guitar fretboard builder
+   • Event wiring & bootstrap
+   ============================================================ */
+
+'use strict';
+
+/* ────────────────────────────────────────────────
+   MUSIC THEORY CONSTANTS
+   ──────────────────────────────────────────────── */
+
+/** The 12 chromatic note names (sharp spelling) */
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+/** Semitone indices of black piano keys within one octave */
+const BLACK = new Set([1, 3, 6, 8, 10]);
+
+/** Piano keyboard range: C3 (midi 48) → C5 (midi 72) */
+const P_LO = 48, P_HI = 72;
+
+/** All intervals from m2 to Octave */
+const INTERVALS = [
+  { semi:1,  sh:'m2', name:'Minor 2nd'   },
+  { semi:2,  sh:'M2', name:'Major 2nd'   },
+  { semi:3,  sh:'m3', name:'Minor 3rd'   },
+  { semi:4,  sh:'M3', name:'Major 3rd'   },
+  { semi:5,  sh:'P4', name:'Perfect 4th' },
+  { semi:6,  sh:'TT', name:'Tritone'     },
+  { semi:7,  sh:'P5', name:'Perfect 5th' },
+  { semi:8,  sh:'m6', name:'Minor 6th'   },
+  { semi:9,  sh:'M6', name:'Major 6th'   },
+  { semi:10, sh:'m7', name:'Minor 7th'   },
+  { semi:11, sh:'M7', name:'Major 7th'   },
+  { semi:12, sh:'P8', name:'Octave'      },
+];
+
+/** Chord types with their semitone formulas from root */
+const CHORDS = [
+  { name:'Major',      sym:'',   semis:[0,4,7]    },
+  { name:'Minor',      sym:'m',  semis:[0,3,7]    },
+  { name:'Augmented',  sym:'+',  semis:[0,4,8]    },
+  { name:'Diminished', sym:'°',  semis:[0,3,6]    },
+  { name:'Dom. 7th',   sym:'7',  semis:[0,4,7,10] },
+  { name:'Maj. 7th',   sym:'M7', semis:[0,4,7,11] },
+  { name:'Min. 7th',   sym:'m7', semis:[0,3,7,10] },
+];
+
+/**
+ * Guitar standard tuning, ordered top-to-bottom (low E string first).
+ * open: open-string MIDI pitch · thick: string line thickness (px)
+ */
+const GUITAR = [
+  { lbl:'E₂', open:40, thick:2.8 }, // string 6 — thickest (wound)
+  { lbl:'A₂', open:45, thick:2.3 }, // string 5
+  { lbl:'D₃', open:50, thick:1.8 }, // string 4
+  { lbl:'G₃', open:55, thick:1.4 }, // string 3
+  { lbl:'B₃', open:59, thick:1.1 }, // string 2
+  { lbl:'E₄', open:64, thick:0.9 }, // string 1 — thinnest (plain)
+];
+
+const FRETS        = 13;              // display frets 0–12
+const DOT_FRETS    = new Set([3,5,7,9]);
+const DOUBLE_FRETS = new Set([12]);
+
+/* ────────────────────────────────────────────────
+   APP STATE
+   ──────────────────────────────────────────────── */
+const S = {
+  mode:     'interval-id',  // current exercise mode
+  sound:    'piano',        // active synth: 'piano' | 'guitar'
+  showP:    true,           // piano section visible
+  showG:    false,          // guitar section visible
+  showN:    false,          // note names visible on instruments
+  ivPlay:   'melodic',      // interval playback: 'melodic' | 'harmonic'
+
+  score:    0,              // correct answers this session
+  streak:   0,              // current consecutive correct streak
+  total:    0,              // total questions answered
+
+  ex:       null,           // current exercise { mode, root, ... }
+  sel:      new Set(),      // user-selected MIDI notes (chord-build)
+  answered: false,          // exercise has been resolved
+  correct:  false,          // last answer was correct
+  selIv:    null,           // which interval semi user clicked (interval-id)
+  selMidi:  null,           // which MIDI user clicked (interval-build)
+  selCh:    null,           // which chord name user clicked (chord-id)
+};
+
+/* ────────────────────────────────────────────────
+   AUDIO ENGINE
+   ──────────────────────────────────────────────── */
+let pianoSynth = null;
+let guitSynth  = null;
+let audioOK    = false;
+
+/** Initialise Tone.js audio graph. Must be called from a user gesture. */
+async function initAudio() {
+  await Tone.start();
+
+  /* — Piano chain: PolySynth → Reverb → Destination — */
+  const pVerb = new Tone.Reverb({ decay: 2.2, wet: 0.18 });
+  await pVerb.ready;          // wait for convolution IR to generate
+  pVerb.toDestination();
+
+  pianoSynth = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'triangle8' },  // warm triangle wave
+    envelope:   { attack: 0.005, decay: 0.85, sustain: 0.04, release: 2.8 },
+  });
+  pianoSynth.volume.value = -13;
+  pianoSynth.connect(pVerb);
+
+  /* — Guitar chain: PolySynth → LPF → Reverb → Destination — */
+  const gVerb = new Tone.Reverb({ decay: 1.0, wet: 0.10 });
+  await gVerb.ready;
+
+  const gLPF = new Tone.Filter({ type:'lowpass', frequency:3400, rolloff:-12 });
+  gLPF.connect(gVerb);
+  gVerb.toDestination();
+
+  guitSynth = new Tone.PolySynth(Tone.Synth, {
+    oscillator: { type: 'sawtooth6' }, // bright sawtooth → filtered for warmth
+    envelope:   { attack: 0.001, decay: 0.2, sustain: 0.0, release: 0.35 },
+  });
+  guitSynth.volume.value = -9;
+  guitSynth.connect(gLPF);
+
+  audioOK = true;
+}
+
+/** MIDI number → Tone.js note string (e.g. 60 → "C4") */
+const midi2tone = m => NOTES[m % 12] + (Math.floor(m / 12) - 1);
+
+/** Get the currently-active synth */
+const getSynth = () => S.sound === 'piano' ? pianoSynth : guitSynth;
+
+/** Trigger a single note at an optional scheduled time */
+function playNote(midi, time) {
+  if (!audioOK) return;
+  const t   = (time !== undefined) ? time : Tone.now();
+  const dur = S.sound === 'piano' ? '2n' : '8n';
+  getSynth().triggerAttackRelease(midi2tone(midi), dur, t);
+  // Flash visual highlight, delayed to sync with scheduled audio
+  const delayMs = Math.max(0, (t - Tone.now()) * 1000);
+  setTimeout(() => flashNote(midi), delayMs);
+}
+
+/** Play notes one after another (melodic) */
+function playMelodic(midis, gap = 0.68) {
+  const t0 = Tone.now() + 0.06;
+  midis.forEach((m, i) => playNote(m, t0 + i * gap));
+}
+
+/** Play notes simultaneously (harmonic) */
+function playHarmonic(midis) {
+  const t0 = Tone.now() + 0.06;
+  midis.forEach(m => playNote(m, t0));
+}
+
+/**
+ * Play an interval as melodic or harmonic depending on S.ivPlay.
+ * Called for both the initial exercise playback and "Play Again".
+ */
+function playIntervalEx(root, tgt) {
+  if (S.ivPlay === 'harmonic') playHarmonic([root, tgt]);
+  else                          playMelodic([root, tgt]);
+}
+
+/** Toggle interval play mode and immediately replay with the new mode */
+function setIvPlay(mode) {
+  if (S.ivPlay === mode) return;
+  S.ivPlay = mode;
+  renderCard(); // re-render to update active pill button
+  if (S.ex && S.ex.mode === 'interval-id') playIntervalEx(S.ex.root, S.ex.tgt);
+}
+
+/** Replay the current exercise audio */
+function replay() {
+  const e = S.ex;
+  if (!e) return;
+  if      (e.mode === 'interval-id')    playIntervalEx(e.root, e.tgt);
+  else if (e.mode === 'interval-build') playNote(e.root);
+  else if (e.mode === 'chord-build')    playHarmonic(e.notes);
+  else if (e.mode === 'chord-id')       playHarmonic(e.notes);
+}
+
+/** Briefly flash all DOM elements that carry a given MIDI */
+function flashNote(midi) {
+  document.querySelectorAll(`[data-midi="${midi}"]`).forEach(el => {
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 500);
+  });
+}
+
+/* ────────────────────────────────────────────────
+   EXERCISE ENGINE
+   ──────────────────────────────────────────────── */
+
+/** Pick a random element from an array */
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+/** Generate and start a new exercise */
+function newExercise() {
+  // Reset transient state
+  S.sel.clear();
+  S.answered = false;
+  S.correct  = false;
+  S.selIv    = null;
+  S.selMidi  = null;
+  S.selCh    = null;
+
+  if (S.mode === 'interval-id') {
+    /* Play two notes; user identifies the interval */
+    const root = P_LO + Math.floor(Math.random() * 13); // C3–C4
+    const iv   = pick(INTERVALS);
+    const tgt  = Math.min(P_HI, root + iv.semi);
+    S.ex = { mode:'interval-id', root, tgt, iv };
+    setTimeout(() => playIntervalEx(root, tgt), 650);
+  }
+  else if (S.mode === 'chord-id') {
+    /* Play a chord; user identifies its quality */
+    let root, ch, notes;
+    do {
+      root  = P_LO + Math.floor(Math.random() * 8);
+      ch    = pick(CHORDS);
+      notes = ch.semis.map(s => root + s);
+    } while (notes.some(m => m > P_HI));
+    S.ex = { mode:'chord-id', root, ch, notes };
+    setTimeout(() => playHarmonic(notes), 650);
+  }
+  else if (S.mode === 'interval-build') {
+    /* Show root; user clicks the correct target note */
+    let root, iv, tgt;
+    do {
+      root = P_LO + Math.floor(Math.random() * 13);
+      iv   = pick(INTERVALS);
+      tgt  = root + iv.semi;
+    } while (tgt > P_HI); // ensure target stays in piano range
+    S.ex = { mode:'interval-build', root, tgt, iv };
+    setTimeout(() => playNote(root), 420);
+  }
+  else if (S.mode === 'chord-build') {
+    /* Show root + chord name; user selects all chord notes */
+    let root, ch, notes;
+    do {
+      root  = P_LO + Math.floor(Math.random() * 8); // narrower range for chords
+      ch    = pick(CHORDS);
+      notes = ch.semis.map(s => root + s);
+    } while (notes.some(m => m > P_HI));
+    S.ex = { mode:'chord-build', root, ch, notes };
+    setTimeout(() => playHarmonic(notes), 420);
+  }
+
+  renderCard();
+  updateHighlights();
+}
+
+/** User clicks an interval answer button */
+function answerIv(semi) {
+  if (S.answered) return;
+  S.selIv  = semi;
+  S.correct = (semi === S.ex.iv.semi);
+  if (!S.correct) setTimeout(() => playNote(S.ex.tgt), 380);
+  finalize(S.correct);
+}
+
+/** User clicks a chord quality button (chord-id mode) */
+function answerChord(chName) {
+  if (S.answered) return;
+  S.selCh  = chName;
+  S.correct = (chName === S.ex.ch.name);
+  // Always play the chord again as confirmation — on wrong answer it reveals the real chord
+  setTimeout(() => playHarmonic(S.ex.notes), S.correct ? 200 : 380);
+  finalize(S.correct);
+}
+
+/**
+ * User clicks a note on the piano or guitar.
+ * Behaviour varies by mode:
+ * - interval-id / chord-id → just plays the note (answers via buttons)
+ * - interval-build          → checks if clicked note is the correct target
+ * - chord-build             → toggles note in/out of selection
+ */
+function answerNote(midi) {
+  if (!S.ex) return;
+
+  if (S.mode === 'interval-id' || S.mode === 'chord-id' || S.answered) {
+    // In identification modes or after answer, clicking instrument just plays the note
+    playNote(midi);
+    return;
+  }
+
+  if (S.mode === 'interval-build') {
+    playNote(midi);
+    S.selMidi = midi;
+    S.correct = (midi === S.ex.tgt);
+    if (!S.correct) setTimeout(() => playNote(S.ex.tgt), 720);
+    finalize(S.correct);
+  }
+  else if (S.mode === 'chord-build') {
+    playNote(midi);
+    // Toggle note class in selection (note class = midi % 12)
+    const nc = midi % 12;
+    let existing = null;
+    for (const m of S.sel) { if (m % 12 === nc) { existing = m; break; } }
+    if (existing !== null) S.sel.delete(existing); // deselect
+    else                   S.sel.add(midi);         // select
+    renderCard();
+    updateHighlights();
+  }
+}
+
+/** Confirm chord selection and grade it */
+function checkChord() {
+  if (S.answered || !S.ex) return;
+  const req = new Set(S.ex.notes.map(m => m % 12));
+  const got = new Set([...S.sel].map(m => m % 12));
+  const allCorrect = [...req].every(c => got.has(c)) && [...got].every(c => req.has(c));
+  S.correct = allCorrect;
+  if (!allCorrect) setTimeout(() => playHarmonic(S.ex.notes), 520);
+  finalize(allCorrect);
+}
+
+/** Update scores and re-render after an answer */
+function finalize(correct) {
+  S.answered = true;
+  S.total++;
+  if (correct) { S.score++; S.streak++; }
+  else S.streak = 0;
+  renderCard();
+  updateHighlights();
+  updateStats();
+}
+
+/* ────────────────────────────────────────────────
+   UI RENDERING
+   ──────────────────────────────────────────────── */
+
+/** Note class (0–11) → display name */
+const noteName = midi => NOTES[midi % 12];
+
+/** Render the exercise card based on current state */
+function renderCard() {
+  const card = document.getElementById('exCard');
+  const e    = S.ex;
+  if (!e) { card.innerHTML = '<p style="color:var(--text3)">Loading…</p>'; return; }
+
+  /* ── Mode badge label ── */
+  const modeLabel = {
+    'interval-id':    'INTERVAL IDENTIFICATION',
+    'interval-build': 'INTERVAL CONSTRUCTION',
+    'chord-build':    'CHORD CONSTRUCTION',
+    'chord-id':       'CHORD IDENTIFICATION',
+  }[e.mode];
+
+  /* ── Task headline & hint ── */
+  let task = '', hint = '', subCtrl = '';
+
+  if (e.mode === 'interval-id') {
+    task = 'What interval is this?';
+    hint = 'Listen carefully, then click the interval name below.';
+    /* Melodic / Harmonic toggle — shown inside the card for context */
+    const mOn = S.ivPlay === 'melodic'  ? 'on' : '';
+    const hOn = S.ivPlay === 'harmonic' ? 'on' : '';
+    subCtrl = `
+      <div style="margin-bottom:14px">
+        <div class="play-mode-pill" aria-label="Playback style">
+          <button class="pmp-btn ${mOn}" onclick="setIvPlay('melodic')">⬇ Melodic</button>
+          <button class="pmp-btn ${hOn}" onclick="setIvPlay('harmonic')">⇉ Harmonic</button>
+        </div>
+      </div>`;
+  } else if (e.mode === 'interval-build') {
+    const rn = noteName(e.root);
+    const ro = Math.floor(e.root / 12) - 1;
+    task = `Build a <em>${e.iv.name}</em> from <em>${rn}${ro}</em>`;
+    hint = `Click the correct note on the instrument.
+            <code>${e.iv.sh} = ${e.iv.semi} semitone${e.iv.semi!==1?'s':''} above the root</code>`;
+  } else if (e.mode === 'chord-build') {
+    const rn = noteName(e.root);
+    task = `Build <em>${rn} ${e.ch.name}</em>`;
+    hint = `Select all ${e.notes.length} chord notes, then click <strong>Check</strong>.`;
+  } else if (e.mode === 'chord-id') {
+    task = 'What chord quality is this?';
+    hint = 'Listen to the chord, then click its name below.';
+  }
+
+  /* ── Action buttons row ── */
+  let acts = `<div class="act-row">
+    <button class="btn-replay" onclick="replay()">
+      <span class="r-icon">▶</span> Play Again
+    </button>`;
+
+  if (e.mode === 'chord-build' && !S.answered) {
+    const n = S.sel.size, r = e.notes.length;
+    acts += `<button class="btn-cta" ${n===0?'disabled':''} onclick="checkChord()">
+               Check — ${n}/${r} selected
+             </button>`;
+  }
+  if (S.answered) {
+    acts += `<button class="btn-cta" onclick="newExercise()">Next Exercise →</button>`;
+  }
+  acts += '</div>';
+
+  /* ── Feedback toast ── */
+  let fb = '';
+  if (S.answered) {
+    const cls  = S.correct ? 'ok' : 'err';
+    const icon = S.correct ? '✓' : '✗';
+    const head = S.correct ? 'Correct!' : 'Not quite.';
+    fb = `<div class="feedback ${cls}">
+            <span class="fb-icon">${icon}</span>
+            <div>
+              <div class="fb-title">${head}</div>
+              <div class="fb-det">${feedbackDetail(e)}</div>
+            </div>
+          </div>`;
+  }
+
+  /* ── Interval answer grid (mode: interval-id) ── */
+  let grid = '';
+  if (e.mode === 'interval-id') {
+    grid = '<div class="ans-grid">';
+    INTERVALS.forEach(iv => {
+      let cls = 'ans-btn', dis = '';
+      if (S.answered) {
+        dis = 'disabled';
+        if (iv.semi === e.iv.semi)   cls += ' ok';
+        else if (iv.semi === S.selIv) cls += ' err';
+      }
+      grid += `<button class="${cls}" ${dis} onclick="answerIv(${iv.semi})">
+                 <span class="iv-sh">${iv.sh}</span>
+                 <span class="iv-n">${iv.name}</span>
+               </button>`;
+    });
+    grid += '</div>';
+  }
+
+  /* ── Chord quality grid (mode: chord-id) ── */
+  if (e.mode === 'chord-id') {
+    grid = '<div class="ch-grid">';
+    CHORDS.forEach(ch => {
+      let cls = 'ch-btn', dis = '';
+      if (S.answered) {
+        dis = 'disabled';
+        if (ch.name === e.ch.name)     cls += ' ok';
+        else if (ch.name === S.selCh)  cls += ' err';
+      }
+      grid += `<button class="${cls}" ${dis} onclick="answerChord('${ch.name}')">
+                 <span class="ch-name">${ch.name}</span>
+                 <span class="ch-sym">${ch.sym || 'Maj'}</span>
+               </button>`;
+    });
+    grid += '</div>';
+  }
+
+  card.innerHTML = `
+    <div class="ex-lbl">${modeLabel}</div>
+    <div class="ex-task">${task}</div>
+    <div class="ex-hint">${hint}</div>
+    ${subCtrl}
+    ${acts}
+    ${fb}
+    ${grid}
+  `;
+}
+
+/** Compose the feedback detail sentence */
+function feedbackDetail(e) {
+  if (e.mode === 'interval-id') {
+    const style = S.ivPlay === 'harmonic' ? 'harmonic' : 'melodic';
+    return `The ${style} interval was <b>${e.iv.name} (${e.iv.sh})</b> — ${e.iv.semi} semitone${e.iv.semi!==1?'s':''}.`;
+  }
+  if (e.mode === 'interval-build') {
+    return `${e.iv.name} above ${noteName(e.root)} = <b>${noteName(e.tgt)}${Math.floor(e.tgt/12)-1}</b>.`;
+  }
+  if (e.mode === 'chord-build') {
+    return `${noteName(e.root)} ${e.ch.name}: <b>${e.notes.map(m => noteName(m)).join(' – ')}</b>`;
+  }
+  if (e.mode === 'chord-id') {
+    const noteList = e.notes.map(m => noteName(m)).join(' – ');
+    return `That was a <b>${noteName(e.root)} ${e.ch.name}</b> chord (${e.ch.sym||'Maj'}). Notes: ${noteList}.`;
+  }
+  return '';
+}
+
+/** Apply / clear colour highlight classes on all instrument elements */
+function updateHighlights() {
+  // Clear previous highlights
+  document.querySelectorAll('.p-key, .fc')
+    .forEach(el => el.classList.remove('k-root','k-sel','k-ok','k-err','k-miss'));
+
+  const e = S.ex;
+  if (!e) return;
+
+  /** Highlight every element with exact MIDI value */
+  const hlMidi = (midi, cls) =>
+    document.querySelectorAll(`[data-midi="${midi}"]`).forEach(el => el.classList.add(cls));
+
+  /** Highlight every element whose note class (midi%12) matches */
+  const hlClass = (nc, cls) =>
+    document.querySelectorAll('[data-midi]').forEach(el => {
+      if (parseInt(el.dataset.midi) % 12 === nc) el.classList.add(cls);
+    });
+
+  // Root note always highlighted
+  hlMidi(e.root, 'k-root');
+
+  if (!S.answered) {
+    // Show chord-build selections in orange
+    if (e.mode === 'chord-build') {
+      S.sel.forEach(m => { if (m !== e.root) hlMidi(m, 'k-sel'); });
+    }
+    // chord-id: no highlights before answer — root is already shown blue above
+  } else {
+    if (e.mode === 'interval-id' || e.mode === 'interval-build') {
+      // Correct target note → green
+      hlMidi(e.tgt, 'k-ok');
+      // Wrong note clicked (interval-build) → red
+      if (!S.correct && S.selMidi && S.selMidi !== e.tgt) {
+        hlMidi(S.selMidi, 'k-err');
+      }
+    } else if (e.mode === 'chord-build') {
+      const req     = new Set(e.notes.map(m => m % 12));
+      const gotCls  = new Set([...S.sel].map(m => m % 12));
+
+      e.notes.forEach(m => {
+        const nc = m % 12;
+        if (gotCls.has(nc)) hlClass(nc, 'k-ok');   // correctly selected → green
+        else                 hlClass(nc, 'k-miss');  // missed → amber
+      });
+      // Extra wrong selections → red
+      S.sel.forEach(m => { if (!req.has(m % 12)) hlMidi(m, 'k-err'); });
+    } else if (e.mode === 'chord-id') {
+      // Reveal all chord tones: green = correct notes of the chord
+      e.notes.forEach(m => {
+        const nc = m % 12;
+        hlClass(nc, 'k-ok');
+      });
+    }
+  }
+}
+
+/** Refresh the header stats display */
+function updateStats() {
+  document.getElementById('statScore').textContent  = `${S.score}/${S.total}`;
+  document.getElementById('statStreak').textContent = S.streak;
+  const pct = S.total > 0 ? Math.min(100, (S.score / S.total) * 100) : 0;
+  document.getElementById('progFill').style.width   = pct + '%';
+}
+
+/* ────────────────────────────────────────────────
+   PIANO KEYBOARD BUILDER
+   ──────────────────────────────────────────────── */
+
+/**
+ * Builds the interactive piano keyboard (C3–C5).
+ * White keys are in normal document flow (absolute within wrap).
+ * Black keys are absolutely positioned on top (z-index: 2).
+ *
+ * Black key left edge formula:
+ *   x = wCount × WKW − BKW/2
+ * where wCount is the number of white keys encountered so far
+ * (i.e., the gap's left edge in pixels), centering the black key over the gap.
+ */
+function buildPiano() {
+  const wrap = document.getElementById('pianoWrap');
+  wrap.innerHTML = '';
+
+  const WKW = 40, WKH = 124, BKW = 24, BKH = 78; // key dimensions in px
+
+  // Collect key data
+  const keys  = [];
+  let wCount  = 0; // white key count (rolling)
+
+  for (let midi = P_LO; midi <= P_HI; midi++) {
+    const semi = midi % 12;
+    const isB  = BLACK.has(semi);
+    const x    = isB ? wCount * WKW - BKW / 2
+                     : wCount * WKW;
+    if (!isB) wCount++;
+    keys.push({ midi, semi, isB, x });
+  }
+
+  // Set wrap dimensions
+  wrap.style.cssText = `position:relative; width:${wCount * WKW}px; height:${WKH}px;`;
+
+  // Render white keys first (z-index 1), then black (z-index 2)
+  const sorted = [...keys.filter(k => !k.isB), ...keys.filter(k => k.isB)];
+
+  sorted.forEach(({ midi, semi, isB, x }) => {
+    const key = document.createElement('div');
+    key.className    = `p-key ${isB ? 'bk' : 'wk'}`;
+    key.dataset.midi = midi;
+    key.style.cssText = `left:${x}px; width:${isB ? BKW : WKW}px; height:${isB ? BKH : WKH}px;`;
+
+    // Note name label (faint, always rendered; shown when toggle active)
+    const lbl = document.createElement('span');
+    lbl.className   = 'klbl';
+    lbl.textContent = NOTES[semi] + (Math.floor(midi / 12) - 1);
+    key.appendChild(lbl);
+
+    key.addEventListener('click', () => answerNote(midi));
+    wrap.appendChild(key);
+  });
+}
+
+/* ────────────────────────────────────────────────
+   GUITAR FRETBOARD BUILDER
+   ──────────────────────────────────────────────── */
+
+/**
+ * Builds the guitar fretboard grid.
+ * Layout (rows top→bottom):
+ *   [Fret numbers row]
+ *   [String 6 / E₂  ] [cell×13]
+ *   [String 5 / A₂  ] [cell×13]
+ *   … 6 string rows …
+ *   [Position dots row]
+ *
+ * Each cell contains a string line (horizontal) and a note dot (circular).
+ */
+function buildGuitar() {
+  const wrap = document.getElementById('fbWrap');
+  wrap.innerHTML = '';
+
+  /* — Fret number header row — */
+  const hrow = document.createElement('div');
+  hrow.className = 'fb-row';
+
+  const hSpc = document.createElement('div');
+  hSpc.className = 'fb-lbl';
+  hrow.appendChild(hSpc);
+
+  for (let f = 0; f < FRETS; f++) {
+    const fc = document.createElement('div');
+    fc.className = `fn-cell${DOT_FRETS.has(f) || DOUBLE_FRETS.has(f) ? ' mfret' : ''}`;
+    fc.textContent = f;
+    hrow.appendChild(fc);
+  }
+  wrap.appendChild(hrow);
+
+  /* — String rows — */
+  GUITAR.forEach((str, si) => {
+    const row = document.createElement('div');
+    row.className = 'fb-row fb-str';
+
+    // Left label
+    const lbl = document.createElement('div');
+    lbl.className = 'fb-lbl';
+    lbl.textContent = str.lbl;
+    row.appendChild(lbl);
+
+    // Fret cells (one per fret: 0 to FRETS-1)
+    for (let f = 0; f < FRETS; f++) {
+      const midi = str.open + f;
+      const cell = document.createElement('div');
+      cell.className    = 'fc' + (f === 0 ? ' nut' : '');
+      cell.dataset.midi   = midi;
+      cell.dataset.string = si;
+      cell.dataset.fret   = f;
+
+      // String line (the wire)
+      const sl = document.createElement('div');
+      sl.className = 'sline';
+      sl.style.height = str.thick + 'px';
+      cell.appendChild(sl);
+
+      // Note dot
+      const dot = document.createElement('div');
+      dot.className = 'ndot';
+
+      const nn = document.createElement('span');
+      nn.className   = 'nn';
+      nn.textContent = NOTES[midi % 12];
+      dot.appendChild(nn);
+      cell.appendChild(dot);
+
+      cell.addEventListener('click', () => answerNote(midi));
+      row.appendChild(cell);
+    }
+
+    wrap.appendChild(row);
+  });
+
+  /* — Position marker dots row (fret inlays) — */
+  const drow = document.createElement('div');
+  drow.className = 'fb-row fd-row';
+
+  const dSpc = document.createElement('div');
+  dSpc.className = 'fb-lbl';
+  drow.appendChild(dSpc);
+
+  for (let f = 0; f < FRETS; f++) {
+    const dc = document.createElement('div');
+    dc.className = 'fd-cell';
+    if (DOT_FRETS.has(f)) {
+      dc.innerHTML = '<span class="pdot"></span>';
+    } else if (DOUBLE_FRETS.has(f)) {
+      dc.innerHTML = '<span class="pdot"></span><span class="pdot"></span>';
+    }
+    drow.appendChild(dc);
+  }
+  wrap.appendChild(drow);
+}
+
+/* ────────────────────────────────────────────────
+   EVENT WIRING
+   ──────────────────────────────────────────────── */
+function setupEvents() {
+  /* Mode tabs */
+  document.querySelectorAll('.mode-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.mode === S.mode) return;
+      document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      S.mode = btn.dataset.mode;
+      newExercise();
+    });
+  });
+
+  /* Sound selector (piano / guitar timbre) */
+  document.querySelectorAll('.snd-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.snd-btn').forEach(b => b.classList.remove('on'));
+      btn.classList.add('on');
+      S.sound = btn.dataset.sound;
+    });
+  });
+
+  /* Toggle piano section visibility */
+  const tP = document.getElementById('tglPiano');
+  tP.addEventListener('click', () => {
+    S.showP = !S.showP;
+    document.getElementById('pianoSec').classList.toggle('hidden', !S.showP);
+    tP.classList.toggle('on', S.showP);
+  });
+
+  /* Toggle guitar section visibility */
+  const tG = document.getElementById('tglGuitar');
+  tG.addEventListener('click', () => {
+    S.showG = !S.showG;
+    document.getElementById('guitarSec').classList.toggle('hidden', !S.showG);
+    tG.classList.toggle('on', S.showG);
+  });
+
+  /* Toggle note name labels */
+  const tN = document.getElementById('tglNames');
+  tN.addEventListener('click', () => {
+    S.showN = !S.showN;
+    tN.classList.toggle('on', S.showN);
+    // Piano: add/remove 'show-names' class on piano-wrap
+    document.getElementById('pianoWrap').classList.toggle('show-names', S.showN);
+    // Guitar: add/remove 'shw' class on all fret cells
+    document.querySelectorAll('.fc').forEach(el => el.classList.toggle('shw', S.showN));
+  });
+}
+
+/* ────────────────────────────────────────────────
+   BOOTSTRAP — fires on "Begin Training" click
+   ──────────────────────────────────────────────── */
+document.getElementById('startBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('startBtn');
+  btn.textContent = 'Initialising audio…';
+  btn.disabled    = true;
+
+  try {
+    await initAudio();
+  } catch (err) {
+    console.error('Audio init failed:', err);
+    btn.textContent = 'Retry';
+    btn.disabled    = false;
+    return;
+  }
+
+  // Hide overlay
+  document.getElementById('overlay').classList.add('gone');
+
+  // Build instruments
+  buildPiano();
+  buildGuitar();
+
+  // Wire up all controls
+  setupEvents();
+
+  // Start first exercise
+  newExercise();
+  updateStats();
+});
+</script>
+</body>
+</html>
