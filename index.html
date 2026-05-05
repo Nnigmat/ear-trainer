@@ -332,9 +332,9 @@ b { font-weight: 600; }
 }
 .fn-cell.mfret { color: var(--text2); font-weight: 500; }
 
-/* Fretboard string rows background color (slight alternation) */
-.fb-str:nth-child(odd)  .fc { background: #BE7E32; }
-.fb-str:nth-child(even) .fc { background: #B07228; }
+/* Fretboard string rows — thin strings (top) slightly lighter, thick (bottom) darker */
+.fb-str:nth-child(odd)  .fc { background: #B87832; }
+.fb-str:nth-child(even) .fc { background: #BE7E32; }
 
 /* Individual fret cells */
 .fc {
@@ -514,7 +514,7 @@ b { font-weight: 600; }
   <div class="inst-sec hidden" id="guitarSec">
     <div class="inst-head">
       <div class="inst-title">
-        Guitar Fretboard <span class="inst-badge">Standard Tuning · EADGBe · 12 frets</span>
+        Guitar Fretboard <span class="inst-badge">Standard Tuning · eBGDAE · 12 frets · guitarist view</span>
       </div>
     </div>
     <div class="inst-body">
@@ -587,12 +587,12 @@ const CHORDS = [
  * open: open-string MIDI pitch · thick: string line thickness (px)
  */
 const GUITAR = [
-  { lbl:'E₂', open:40, thick:2.8 }, // string 6 — thickest (wound)
-  { lbl:'A₂', open:45, thick:2.3 }, // string 5
-  { lbl:'D₃', open:50, thick:1.8 }, // string 4
-  { lbl:'G₃', open:55, thick:1.4 }, // string 3
+  { lbl:'E₄', open:64, thick:0.9 }, // string 1 — thinnest (plain)   ← top (as guitarist sees)
   { lbl:'B₃', open:59, thick:1.1 }, // string 2
-  { lbl:'E₄', open:64, thick:0.9 }, // string 1 — thinnest (plain)
+  { lbl:'G₃', open:55, thick:1.4 }, // string 3
+  { lbl:'D₃', open:50, thick:1.8 }, // string 4
+  { lbl:'A₂', open:45, thick:2.3 }, // string 5
+  { lbl:'E₂', open:40, thick:2.8 }, // string 6 — thickest (wound)   ← bottom
 ];
 
 const FRETS        = 13;              // display frets 0–12
